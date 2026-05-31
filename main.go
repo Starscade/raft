@@ -14,12 +14,10 @@ import (
 )
 
 func main() {
-	port := os.Getenv("PUDDLE_PORT")
+	port := os.Getenv("RAFT_PORT")
 	if port == "" {
 		port = "80"
 	}
-
-	printLog("Starting up on port " + port)
 
 	db, err := sql.Open("duckdb", "")
 	if err != nil {
@@ -27,7 +25,7 @@ func main() {
 	}
 	defer db.Close()
 
-	sql_file := os.Getenv("PUDDLE_INIT_SQL_FILE")
+	sql_file := os.Getenv("RAFT_INIT_SQL_FILE")
 	if sql_file != "" {
 		file_bytes, err := os.ReadFile(sql_file)
 		if err != nil {
@@ -100,9 +98,13 @@ func main() {
 	})
 
 	server := &http.Server{Addr: ":" + port}
+
+	printLog("Listening on port " + port)
+
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		printLog(err.Error())
 	}
+
 }
 
 func printLog(text string) {
