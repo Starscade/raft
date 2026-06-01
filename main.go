@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	_ "github.com/duckdb/duckdb-go/v2"
@@ -21,7 +24,7 @@ func main() {
 
 	db, err := sql.Open("duckdb", "")
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	defer db.Close()
 
@@ -37,7 +40,8 @@ func main() {
 		}
 	}
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		printLog(r.RemoteAddr + " requested " + r.URL.Path)
 		
 		if r.Method != http.MethodPost {
@@ -97,16 +101,32 @@ func main() {
 		json.NewEncoder(w).Encode(results)
 	})
 
-	server := &http.Server{Addr: ":" + port}
+	server := &http.Server{Addr: ":" + port, Handler: mux}
+
+	idleConnsClosed := make(chan struct{})
+	go func() {
+		sigint := make(chan os.Signal, 1)
+		signal.Notify(sigint, os.Interrupt, syscall.SIGTERM)
+		<-sigint
+
+		printLog("Shutting down server...")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := server.Shutdown(ctx); err != nil {
+			log.Fatalf("HTTP server Shutdown: %v", err)
+		}
+		close(idleConnsClosed)
+	}()
 
 	printLog("Listening on port " + port)
-
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		printLog(err.Error())
+	if err := server.ListenAndServe(); err != http.ErrServerClosed {
+		log.Fatalf("HTTP server ListenAndServe: %v", err)
 	}
 
+	<-idleConnsClosed
+	printLog("Server stopped")
 }
 
 func printLog(text string) {
-	fmt.Printf("\033[1m%s\033[0m %s\n", time.Now().Format(time.RFC3339), text)
+	fmt.Printf("%s %s\n", time.Now().Format(time.RFC3339), text)
 }
