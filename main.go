@@ -42,7 +42,6 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		printLog(r.RemoteAddr + " requested " + r.URL.Path)
 		
 		if r.Method != http.MethodPost {
 			http.Error(w, "", http.StatusMethodNotAllowed)
@@ -128,5 +127,5 @@ func main() {
 }
 
 func printLog(text string) {
-	fmt.Printf("%s %s\n", time.Now().Format(time.RFC3339), text)
+	fmt.Printf("\033[90m%s\033[0m %s\n", time.Now().Format(time.RFC3339), text)
 }
