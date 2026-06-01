@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en" oncontextmenu="return false">
+	<head>
+		<link
+			href="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
+			rel="icon"
+		>
+		<link
+			href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0"
+			rel="stylesheet"
+		>
+		<link
+			href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css"
+			rel="stylesheet"
+		>
+		<meta charset="UTF-8">
+		<meta
+			content="initial-scale=1,interactive-widget=resizes-content,maximum-scale=1,user-scalable=no,width=device-width"
+			name="viewport"
+		>
+		<style>
+			:root, body, main {
+				height: 100%;
+			}
+
+			:root {
+				-webkit-tap-highlight-color: transparent;
+				overflow: hidden;
+				scrollbar-color: White Black;
+				user-select: none;
+			}
+
+			article {
+				overflow: auto;
+			}
+
+			header {
+				padding: 1rem 0 0.5rem 1rem;
+			}
+
+			td, th {
+				cursor: pointer;
+			}
+
+			td:hover, th:hover {
+				background: #ffffff11;
+			}
+
+			td:active, th:active {
+				background: currentColor;
+			}
+
+			th {
+				text-transform: uppercase;
+			}
+
+			.gap {
+				gap: 0.5rem;
+			}
+		</style>
+		<title>DataRAFT&trade;</title>
+	</head>
+	<body>
+		<main class="is-flex is-flex-direction-column">
+			<header class="has-background-black-ter">
+				<span class="icon">
+						<i class="material-symbols-rounded">planet</i>
+				</span>
+			</header>
+			<article class="section is-flex-grow-1">
+				<table id="ui-csv" class="table"></table>
+			</article>
+			<footer class="footer is-flex is-flex-direction-column gap">
+				<section class="is-flex gap">
+					<div class="control has-icons-left is-flex-grow-1">
+						<span class="icon">
+							<i class="material-symbols-rounded">database</i>
+						</span>
+						<input id="ctrl-sql" class="input" placeholder="SQL..." autofocus>
+					</div>
+					<button id="ctrl-x" class="button">
+						<span class="icon">
+							<i class="material-symbols-rounded">backspace</i>
+						</span>
+					</button>
+					<button id="ctrl-go" class="button">
+						<span class="icon">
+							<i class="material-symbols-rounded">send</i>
+						</span>
+					</button>
+				</section>
+				<section class="is-flex gap">
+					<span class="is-flex-grow-1"></span>
+					<button id="ctrl-xport" class="button" disabled>
+						<span class="icon">
+							<i class="material-symbols-rounded">download</i>
+						</span>
+						<span>CSV</span>
+					</button>
+				</section>
+			</footer>
+		</main>
+		<script type="module">
+			const CTRL_GO = document.getElementById('ctrl-go')
+			const CTRL_SQL = document.getElementById('ctrl-sql')
+			const CTRL_X = document.getElementById('ctrl-x')
+			const CTRL_XPORT = document.getElementById('ctrl-xport')
+			const UI_CSV = document.getElementById('ui-csv')
+
+			let CSV = ''
+			let HTML = ''
+
+			// LISTENERS
+
+			CTRL_GO.addEventListener('click', async () => {
+				if (CTRL_SQL.value) {
+					CTRL_SQL.parentElement.classList.add('is-loading')
+					UI_CSV.innerHTML = ''
+					const supa_id = localStorage.getItem('SUPA_ID')
+					const supa_key = localStorage.getItem('SUPA_KEY')
+					const sql_raw = CTRL_SQL.value.trim()
+					const sql_array = sql_raw.replaceAll(/\s+/g, ' ').replaceAll(
+						';',
+						'',
+					).split(' ')
+					let sql = sql_array.join(' ')
+					let endpoint = '/raw_query'
+					if (sql_array[0].startsWith('/')) {
+						endpoint = sql_array[0]
+						sql = sql_array.slice(1).join(' ')
+					}
+					CTRL_SQL.blur()
+					const answer = await fetch(
+						'/',
+						{
+							body: sql,
+							method: 'POST',
+						},
+					)
+
+					const result = await answer.text()
+					let wrapped_result = result
+
+					if (!result.startsWith('[')) {
+						wrapped_result = '[' + result + ']'
+					}
+
+					CSV = json2csv(wrapped_result)
+					HTML = json2html(wrapped_result)
+					CTRL_XPORT.disabled = false
+
+					console.log(
+						'QUERY:',
+						{
+							query: sql,
+							result: JSON.parse(result),
+							timestamp: (new Date()).toISOString(),
+						},
+					)
+					CTRL_SQL.parentElement.classList.remove('is-loading')
+				}
+			})
+
+			CTRL_X.addEventListener('click', () => {
+				CTRL_SQL.value = ''
+			})
+
+			CTRL_XPORT.addEventListener('click', () => {
+				const bob = new Blob([CSV], { type: 'text/csv' })
+
+				const obj_url = URL.createObjectURL(bob)
+				const lnk = document.createElement('a')
+				lnk.href = obj_url
+				lnk.download = 'query_results.csv'
+				document.body.appendChild(lnk)
+				lnk.click()
+				document.body.removeChild(lnk)
+			})
+
+			document.documentElement.addEventListener('keydown', (k) => {
+				const key = k.key.toUpperCase()
+
+				if (key === 'ENTER') {
+					CTRL_GO.click()
+				}
+
+				if (key === 'TAB') {
+					k.preventDefault()
+					CTRL_SQL.focus()
+				}
+			})
+
+			// FUNCTIONS
+
+			function copy2clip(html_element) {
+				const txt = html_element.textContent
+				navigator.clipboard.writeText(txt)
+			}
+
+			function isJson(val) {
+				return (
+						val !== null &&
+						typeof val === 'object' &&
+						!Array.isArray(val)
+					)
+					? JSON.stringify(val)
+					: val
+			}
+
+			function json2csv(incoming_string) {
+				const json = JSON.parse(incoming_string)
+				const csv_delineator = '\t'
+				const json_keys = Object.keys(json[0])
+				const csv_head = json_keys.join(csv_delineator)
+				const csv_rows = json.map((csv_row) => {
+					return json_keys.map((json_key) => {
+						const row = isJson(csv_row[json_key])
+						return row
+					}).join(csv_delineator)
+				})
+
+				return [csv_head, ...csv_rows].join('\n')
+			}
+
+			function json2html(incoming_string) {
+				const json = JSON.parse(incoming_string)
+				const json_keys = Object.keys(json[0])
+				const csv_head = document.createElement('tr')
+				json_keys.forEach((json_key) => {
+					const th = document.createElement('th')
+					th.textContent = json_key
+					th.addEventListener('click', () => {
+						copy2clip(th)
+					})
+
+					csv_head.appendChild(th)
+				})
+
+				UI_CSV.appendChild(csv_head)
+				json.forEach((json_row) => {
+					const csv_row = document.createElement('tr')
+					Object.keys(json_row).forEach((column_key) => {
+						const td = document.createElement('td')
+						td.textContent = isJson(json_row[column_key])
+						td.addEventListener('click', () => {
+							copy2clip(td)
+						})
+
+						csv_row.appendChild(td)
+					})
+
+					UI_CSV.appendChild(csv_row)
+				})
+			}
+
+		</script>
+	</body>
+</html>

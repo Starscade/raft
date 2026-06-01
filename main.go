@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"database/sql"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -15,6 +17,9 @@ import (
 
 	_ "github.com/duckdb/duckdb-go/v2"
 )
+
+//go:embed index.html
+var content embed.FS
 
 func main() {
 	port := os.Getenv("RAFT_PORT")
@@ -41,8 +46,19 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		
+		if r.Method == http.MethodGet {
+			index, err := fs.ReadFile(content, "index.html")
+			if err != nil {
+				http.Error(w, "Not found", http.StatusNotFound)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html")
+			w.Write(index)
+			return
+		}
+
 		if r.Method != http.MethodPost {
 			http.Error(w, "", http.StatusMethodNotAllowed)
 			return
@@ -127,5 +143,5 @@ func main() {
 }
 
 func printLog(text string) {
-	fmt.Printf("\033[90m%s\033[0m %s\n", time.Now().Format(time.RFC3339), text)
+	fmt.Printf("%s %s\n", time.Now().Format(time.RFC3339), text)
 }
