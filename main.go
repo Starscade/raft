@@ -44,18 +44,17 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+	index_file, err := fs.ReadFile(content, "index.html")
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			index, err := fs.ReadFile(content, "index.html")
-			if err != nil {
-				http.Error(w, "Not found", http.StatusNotFound)
-				return
-			}
 			w.Header().Set("Content-Type", "text/html")
-			w.Write(index)
+			w.Write(index_file)
 			return
 		}
 
